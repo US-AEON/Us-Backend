@@ -9,50 +9,66 @@ export class FirebaseService implements OnModuleInit {
     try {
       // 프로젝트 ID
       const projectId = process.env.FIREBASE_PROJECT_ID || 'us-code-3f1fa';
-      
-      let credential;
-      let firebaseConfig: admin.AppOptions = {
-        projectId: projectId
+
+      let credential: admin.credential.Credential | undefined;
+      const firebaseConfig: admin.AppOptions = {
+        projectId: projectId,
       };
-      
+
       // 환경 변수에서 직접 서비스 계정 키 JSON 참조
       if (process.env.FIREBASE_SERVICE_ACCOUNT) {
         try {
-          const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+          const serviceAccount = JSON.parse(
+            process.env.FIREBASE_SERVICE_ACCOUNT,
+          ) as admin.ServiceAccount;
           credential = admin.credential.cert(serviceAccount);
-          console.log('Firebase: 환경 변수의 서비스 계정 키 JSON을 사용하여 초기화합니다.');
-          
+          console.log(
+            'Firebase: 환경 변수의 서비스 계정 키 JSON을 사용하여 초기화합니다.',
+          );
+
           // 서비스 계정에서 프로젝트 ID를 가져와 명시적으로 설정
-          if (serviceAccount.project_id) {
-            firebaseConfig.projectId = serviceAccount.project_id;
-            console.log(`Firebase: 서비스 계정에서 프로젝트 ID를 설정합니다: ${serviceAccount.project_id}`);
+          if (serviceAccount.projectId) {
+            firebaseConfig.projectId = serviceAccount.projectId;
+            console.log(
+              `Firebase: 서비스 계정에서 프로젝트 ID를 설정합니다: ${serviceAccount.projectId}`,
+            );
           }
         } catch (e) {
-          console.error('Firebase: 환경 변수의 서비스 계정 키 JSON 파싱 오류:', e);
+          console.error(
+            'Firebase: 환경 변수의 서비스 계정 키 JSON 파싱 오류:',
+            e,
+          );
         }
-      } 
+      }
       // 서비스 계정 키 파일 경로를 사용하는 방법 (로컬 개발 환경)
       else {
-        const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH 
-          || path.join(process.cwd(), 'service-account.json');
-          
+        const serviceAccountPath =
+          process.env.FIREBASE_SERVICE_ACCOUNT_PATH ||
+          path.join(process.cwd(), 'service-account.json');
+
         if (fs.existsSync(serviceAccountPath)) {
           // 파일에서 서비스 계정 키 로드
-          const serviceAccount = require(serviceAccountPath);
+          const serviceAccount = JSON.parse(
+            fs.readFileSync(serviceAccountPath, 'utf8'),
+          ) as admin.ServiceAccount;
           credential = admin.credential.cert(serviceAccount);
           console.log('Firebase: 서비스 계정 키 파일을 사용하여 초기화합니다.');
-          
+
           // 서비스 계정에서 프로젝트 ID를 가져와 명시적으로 설정
-          if (serviceAccount.project_id) {
-            firebaseConfig.projectId = serviceAccount.project_id;
-            console.log(`Firebase: 서비스 계정에서 프로젝트 ID를 설정합니다: ${serviceAccount.project_id}`);
+          if (serviceAccount.projectId) {
+            firebaseConfig.projectId = serviceAccount.projectId;
+            console.log(
+              `Firebase: 서비스 계정에서 프로젝트 ID를 설정합니다: ${serviceAccount.projectId}`,
+            );
           }
-        } 
+        }
         // Google Cloud 기본 인증 정보 사용
         else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
           credential = admin.credential.applicationDefault();
-          console.log('Firebase: GOOGLE_APPLICATION_CREDENTIALS 환경 변수를 사용하여 초기화합니다.');
-        } 
+          console.log(
+            'Firebase: GOOGLE_APPLICATION_CREDENTIALS 환경 변수를 사용하여 초기화합니다.',
+          );
+        }
         // 완전히 기본 인증 방식 사용
         else {
           credential = admin.credential.applicationDefault();
@@ -65,8 +81,10 @@ export class FirebaseService implements OnModuleInit {
 
       // Firebase 초기화
       admin.initializeApp(firebaseConfig);
-      
-      console.log(`Firebase 초기화 완료 (프로젝트 ID: ${firebaseConfig.projectId})`);
+
+      console.log(
+        `Firebase 초기화 완료 (프로젝트 ID: ${firebaseConfig.projectId})`,
+      );
     } catch (error) {
       console.error('Firebase 초기화 오류:', error);
     }
@@ -79,4 +97,4 @@ export class FirebaseService implements OnModuleInit {
   getFirestore() {
     return admin.firestore();
   }
-} 
+}

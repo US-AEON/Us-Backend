@@ -19,20 +19,20 @@ export class AppController {
     try {
       // Firebase Admin SDK 인스턴스 가져오기
       const admin = this.firebaseService.getFirebaseAdmin();
-      
+
       // Firestore 인스턴스 가져오기
       const firestore = this.firebaseService.getFirestore();
-      
+
       // 테스트 컬렉션에 문서 추가 시도
       const testDoc = await firestore.collection('test').add({
         message: 'Firebase 연결 테스트',
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
       });
-      
+
       // 방금 생성한 문서 읽어오기
       const docSnapshot = await testDoc.get();
-      
+
       return {
         status: 'success',
         message: 'Firebase Firestore 연결 성공!',
@@ -45,7 +45,7 @@ export class AppController {
       return {
         status: 'error',
         message: 'Firebase 연결 실패',
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
   }
