@@ -23,6 +23,8 @@ steps:
       - '--allow-unauthenticated'
       - '--set-env-vars'
       - 'FIREBASE_PROJECT_ID=${_FIREBASE_PROJECT_ID}'
+      - '--set-secrets'
+      - 'FIREBASE_SERVICE_ACCOUNT=firebase-service-account:latest'
 
 # 이미지를 Container Registry에 저장
 images:
