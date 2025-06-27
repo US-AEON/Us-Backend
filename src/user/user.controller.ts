@@ -1,6 +1,7 @@
-import { Body, Controller, Post, UseGuards, Req, HttpCode, HttpStatus, Put } from '@nestjs/common';
+import { Body, Controller, Post, UseGuards, Req, HttpCode, HttpStatus, Put, Patch } from '@nestjs/common';
 import { UserService } from './user.service';
 import { ProfileDto } from './dto/profile.dto';
+import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Request } from 'express';
 
@@ -29,5 +30,16 @@ export class UserController {
       message: '프로필 정보가 성공적으로 저장되었습니다.',
       data: result
     };
+  }
+
+  @Patch('profile')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async updateUserProfile(
+    @Body() updateData: UpdateUserProfileDto,
+    @Req() request: RequestWithUser,
+  ) {
+    const userId = request.user.uid;
+    return await this.userService.updateUserProfile(userId, updateData);
   }
 } 

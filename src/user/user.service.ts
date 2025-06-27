@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { FirebaseService } from '../firebase/firebase.service';
 import { ProfileDto } from './dto/profile.dto';
+import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
 import { UserProfile } from '../auth/interfaces/user.interface';
 
 @Injectable()
@@ -55,6 +56,54 @@ export class UserService {
       };
     } catch (error) {
       console.error('프로필 정보 저장 실패:', error);
+      throw error;
+    }
+  }
+
+  async updateUserProfile(userId: string, updateData: UpdateUserProfileDto) {
+    try {
+      const firestore = this.firebaseService.getFirestore();
+      
+      // 최소 하나의 필드는 있어야 함
+      if (!updateData.currentCity && !updateData.mainLanguage) {
+        throw new BadRequestException('업데이트할 프로필 정보가 없습니다.');
+      }
+      
+      // 사용자 프로필 존재 여부 확인
+      const profilesRef = firestore.collection('profiles');
+      const profileQuery = await profilesRef.where('userId', '==', userId).limit(1).get();
+      
+      if (profileQuery.empty) {
+        throw new NotFoundException('사용자 프로필을 찾을 수 없습니다. 먼저 프로필을 생성해주세요.');
+      }
+      
+      // 업데이트할 필드 준비
+      const updateFields: { [key: string]: any } = {
+        updatedAt: new Date()
+      };
+      
+      if (updateData.currentCity) {
+        updateFields.currentCity = updateData.currentCity;
+      }
+      
+      if (updateData.mainLanguage) {
+        updateFields.mainLanguage = updateData.mainLanguage;
+      }
+      
+      // 프로필 업데이트
+      const profileDoc = profileQuery.docs[0];
+      await profilesRef.doc(profileDoc.id).update(updateFields);
+      
+      // 업데이트된 프로필 정보 반환
+      const updatedProfile = await profilesRef.doc(profileDoc.id).get();
+      
+      return {
+        success: true,
+        message: '프로필 정보가 업데이트되었습니다.',
+        data: updatedProfile.data()
+      };
+    } catch (error) {
+      console.error('프로필 정보 업데이트 실패:', error);
       throw error;
     }
   }
