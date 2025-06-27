@@ -1,0 +1,26 @@
+# .gcloudignore 파일
+
+# Git 관련 파일
+.git
+.gitignore
+
+# Node.js 의존성 및 로그 파일
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# 테스트 파일
+test/
+coverage/
+
+# 개발 환경 설정 파일
+.env.local
+.env.development
+.env.test
+.vscode/
+.idea/
+
+# 기타 파일
+*.md
+!README.md
+.DS_Store 

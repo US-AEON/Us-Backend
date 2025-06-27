@@ -1,0 +1,32 @@
+steps:
+  # 도커 이미지 빌드
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', '${_AR_HOSTNAME}/${_AR_PROJECT_ID}/${_REPO_NAME}:$COMMIT_SHA', '.']
+
+  # 도커 이미지를 Container Registry에 푸시
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '${_AR_HOSTNAME}/${_AR_PROJECT_ID}/${_REPO_NAME}:$COMMIT_SHA']
+
+  # 새 이미지를 Cloud Run에 배포
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_SERVICE_NAME}'
+      - '--image'
+      - '${_AR_HOSTNAME}/${_AR_PROJECT_ID}/${_REPO_NAME}:$COMMIT_SHA'
+      - '--region'
+      - '${_DEPLOY_REGION}'
+      - '--platform'
+      - '${_PLATFORM}'
+      - '--allow-unauthenticated'
+      - '--set-env-vars'
+      - 'FIREBASE_PROJECT_ID=${_FIREBASE_PROJECT_ID}'
+
+# 이미지를 Container Registry에 저장
+images:
+  - '${_AR_HOSTNAME}/${_AR_PROJECT_ID}/${_REPO_NAME}:$COMMIT_SHA'
+
+# 타임아웃 설정 (기본값: 10분)
+timeout: '1200s'
