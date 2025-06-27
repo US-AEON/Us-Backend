@@ -5,4 +5,4 @@ import { GeminiService } from './gemini.service';
   providers: [GeminiService],
   exports: [GeminiService],
 })
-export class GeminiModule {} 
+export class GeminiModule {}
