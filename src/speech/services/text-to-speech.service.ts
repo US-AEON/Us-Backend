@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { SpeechClient } from '@google-cloud/speech';
+import { TextToSpeechClient } from '@google-cloud/text-to-speech';
 import * as fs from 'fs';
-import { SpeechResult } from '../interfaces/speech-result.interface';
 import { getAllSupportedLanguageCodes } from '../../shared/constants/language.constants';
 
 interface ServiceAccountCredentials {
@@ -17,9 +16,9 @@ interface ServiceAccountCredentials {
 }
 
 @Injectable()
-export class SpeechToTextService {
-  private readonly logger = new Logger(SpeechToTextService.name);
-  private readonly speechClient: SpeechClient;
+export class TextToSpeechService {
+  private readonly logger = new Logger(TextToSpeechService.name);
+  private readonly ttsClient: TextToSpeechClient;
 
   constructor() {
     try {
@@ -42,18 +41,18 @@ export class SpeechToTextService {
           ) as ServiceAccountCredentials;
           clientConfig.credentials = serviceAccount;
           this.logger.log(
-            'Speech: 환경 변수의 서비스 계정 키 JSON을 사용하여 초기화합니다.',
+            'TTS: 환경 변수의 서비스 계정 키 JSON을 사용하여 초기화합니다.',
           );
 
           if (serviceAccount.projectId) {
             clientConfig.projectId = serviceAccount.projectId;
             this.logger.log(
-              `Speech: 서비스 계정에서 프로젝트 ID를 설정합니다: ${serviceAccount.projectId}`,
+              `TTS: 서비스 계정에서 프로젝트 ID를 설정합니다: ${serviceAccount.projectId}`,
             );
           }
         } catch (e) {
           this.logger.error(
-            'Speech: 환경 변수의 서비스 계정 키 JSON 파싱 오류:',
+            'TTS: 환경 변수의 서비스 계정 키 JSON 파싱 오류:',
             e,
           );
         }
@@ -68,43 +67,43 @@ export class SpeechToTextService {
             fs.readFileSync(serviceAccountPath, 'utf8'),
           ) as ServiceAccountCredentials;
           clientConfig.credentials = serviceAccount;
-          this.logger.log(
-            'Speech: 서비스 계정 키 파일을 사용하여 초기화합니다.',
-          );
+          this.logger.log('TTS: 서비스 계정 키 파일을 사용하여 초기화합니다.');
 
           if (serviceAccount.project_id) {
             clientConfig.projectId = serviceAccount.project_id;
             this.logger.log(
-              `Speech: 서비스 계정에서 프로젝트 ID를 설정합니다: ${serviceAccount.project_id}`,
+              `TTS: 서비스 계정에서 프로젝트 ID를 설정합니다: ${serviceAccount.project_id}`,
             );
           }
         }
         // Google Cloud 기본 인증 정보 사용
         else {
-          this.logger.log('Speech: 기본 인증 정보를 사용하여 초기화합니다.');
+          this.logger.log('TTS: 기본 인증 정보를 사용하여 초기화합니다.');
         }
       }
 
-      this.speechClient = new SpeechClient(clientConfig);
+      this.ttsClient = new TextToSpeechClient(clientConfig);
       this.logger.log(
-        `Speech 초기화 완료 (프로젝트 ID: ${clientConfig.projectId})`,
+        `TTS 초기화 완료 (프로젝트 ID: ${clientConfig.projectId})`,
       );
     } catch (error) {
-      this.logger.error('Speech 초기화 오류:', error);
+      this.logger.error('TTS 초기화 오류:', error);
       // 폴백으로 기본 설정 사용
-      this.speechClient = new SpeechClient({ projectId: 'image-tool-462403' });
+      this.ttsClient = new TextToSpeechClient({
+        projectId: 'image-tool-462403',
+      });
     }
   }
 
-  async convertSpeechToText(
-    audioBuffer: Buffer,
+  async convertTextToSpeech(
+    text: string,
     languageCode: string,
-  ): Promise<SpeechResult> {
+  ): Promise<Buffer> {
     const startTime = Date.now();
 
     // 엄격한 검증
-    if (!audioBuffer || audioBuffer.length === 0) {
-      throw new Error('Audio buffer is empty or invalid');
+    if (!text || text.trim().length === 0) {
+      throw new Error('Text is required');
     }
 
     if (!languageCode || languageCode.trim().length === 0) {
@@ -122,58 +121,40 @@ export class SpeechToTextService {
     }
 
     try {
-      this.logger.log(`Starting speech-to-text conversion for ${languageCode}`);
-      this.logger.log(`Audio buffer size: ${audioBuffer.length} bytes`);
+      this.logger.log(`Starting text-to-speech conversion for ${languageCode}`);
+      this.logger.log(`Text to convert: "${text.substring(0, 100)}..."`);
 
-      // Google Cloud Speech-to-Text API 요청 설정
+      // 언어별 음성 설정
+      const voiceSettings = this.getVoiceSettings(languageCode);
+
+      // Google Cloud Text-to-Speech API 요청 설정
       const request = {
-        audio: {
-          content: audioBuffer.toString('base64'),
-        },
-        config: {
-          encoding: 'MP3' as const,
-          sampleRateHertz: 44100,
-          languageCode: languageCode,
-          enableAutomaticPunctuation: true,
-          model: 'latest_long',
+        input: { text: text },
+        voice: voiceSettings,
+        audioConfig: {
+          audioEncoding: 'MP3' as const,
+          speakingRate: 1.0,
+          pitch: 0.0,
+          volumeGainDb: 0.0,
         },
       };
 
-      // Google Cloud Speech API 호출
-      const [response] = await this.speechClient.recognize(request);
+      // Google Cloud TTS API 호출
+      const [response] = await this.ttsClient.synthesizeSpeech(request);
 
-      let transcript = '';
-      let confidence = 0;
-
-      if (response.results && response.results.length > 0) {
-        const alternatives = response.results[0].alternatives;
-        if (alternatives && alternatives.length > 0) {
-          transcript = alternatives[0].transcript || '';
-          confidence = alternatives[0].confidence || 0;
-        }
+      if (!response.audioContent) {
+        throw new Error('No audio content received from TTS API');
       }
 
-      // 인식된 텍스트가 없는 경우
-      if (!transcript) {
-        this.logger.warn('No speech recognized in audio');
-        transcript = '음성을 인식할 수 없습니다.';
-        confidence = 0;
-      }
-
-      const result: SpeechResult = {
-        transcript,
-        confidence,
-        languageCode: languageCode,
-      };
+      const audioBuffer = Buffer.from(response.audioContent as Uint8Array);
 
       const processingTime = Date.now() - startTime;
-      this.logger.log(`Speech-to-text completed in ${processingTime}ms`);
-      this.logger.log(`Recognized text: "${result.transcript}"`);
-      this.logger.log(`Confidence: ${result.confidence}`);
+      this.logger.log(`Text-to-speech completed in ${processingTime}ms`);
+      this.logger.log(`Generated audio size: ${audioBuffer.length} bytes`);
 
-      return result;
+      return audioBuffer;
     } catch (error) {
-      this.logger.error('Speech-to-text conversion failed:', error);
+      this.logger.error('Text-to-speech conversion failed:', error);
 
       // Google Cloud API 오류 시 더 나은 오류 메시지 제공
       if (
@@ -185,24 +166,45 @@ export class SpeechToTextService {
         const errorCode = (error as { code: number }).code;
         switch (errorCode) {
           case 3: // INVALID_ARGUMENT
-            throw new Error('잘못된 오디오 형식입니다.');
+            throw new Error('잘못된 텍스트 또는 언어 설정입니다.');
           case 7: // PERMISSION_DENIED
             throw new Error('Google Cloud 인증 오류입니다.');
           case 8: // RESOURCE_EXHAUSTED
             throw new Error('API 사용량 한도를 초과했습니다.');
           default:
-            throw new Error('음성 인식 서비스 오류가 발생했습니다.');
+            throw new Error('음성 합성 서비스 오류가 발생했습니다.');
         }
       }
 
       const message = error instanceof Error ? error.message : 'Unknown error';
-      throw new Error(`Speech conversion failed: ${message}`);
+      throw new Error(`Text-to-speech conversion failed: ${message}`);
     }
   }
 
-  private async simulateProcessing(): Promise<void> {
-    // API 처리 시간 시뮬레이션 (1-3초)
-    const delay = Math.random() * 2000 + 1000;
-    return new Promise((resolve) => setTimeout(resolve, delay));
+  private getVoiceSettings(languageCode: string) {
+    const voiceMap = {
+      'ko-KR': {
+        languageCode: 'ko-KR',
+        name: 'ko-KR-Neural2-A', // 한국어 여성 음성
+        ssmlGender: 'FEMALE' as const,
+      },
+      'en-US': {
+        languageCode: 'en-US',
+        name: 'en-US-Neural2-F', // 영어 여성 음성
+        ssmlGender: 'FEMALE' as const,
+      },
+      'km-KH': {
+        languageCode: 'km-KH',
+        name: 'km-KH-Standard-A', // 크메르어 여성 음성
+        ssmlGender: 'FEMALE' as const,
+      },
+      'vi-VN': {
+        languageCode: 'vi-VN',
+        name: 'vi-VN-Neural2-A', // 베트남어 여성 음성
+        ssmlGender: 'FEMALE' as const,
+      },
+    };
+
+    return voiceMap[languageCode as keyof typeof voiceMap] || voiceMap['ko-KR'];
   }
 }
