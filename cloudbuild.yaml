@@ -22,7 +22,7 @@ steps:
       - '${_PLATFORM}'
       - '--allow-unauthenticated'
       - '--set-env-vars'
-      - 'FIREBASE_PROJECT_ID=${_FIREBASE_PROJECT_ID}'
+      - 'FIREBASE_PROJECT_ID=${_FIREBASE_PROJECT_ID},GEMINI_API_KEY=${_GEMINI_API_KEY}'
       - '--set-secrets'
       - 'FIREBASE_SERVICE_ACCOUNT=firebase-service-account:latest'
 
