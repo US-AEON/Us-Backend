@@ -3,7 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { FirebaseService } from '../firebase/firebase.service';
 import * as jwt from 'jsonwebtoken';
 import { ConfigService } from '@nestjs/config';
-import { User } from './interfaces/user.interface';
+import { UserAccount } from './interfaces/user.interface';
 
 @Injectable()
 export class AuthService {
@@ -36,7 +36,7 @@ export class AuthService {
   }
 
   // 사용자 정보를 기반으로 JWT 액세스 토큰을 생성
-  async generateAccessToken(user: User) {
+  async generateAccessToken(user: { uid: string }) {
     const payload = {
       uid: user.uid,
     };
@@ -47,7 +47,7 @@ export class AuthService {
   }
 
   // 사용자 정보를 기반으로 JWT 리프레시 토큰을 생성
-  async generateRefreshToken(user: User) {
+  async generateRefreshToken(user: { uid: string }) {
     const payload = {
       uid: user.uid,
       type: 'refresh',
@@ -98,7 +98,7 @@ export class AuthService {
         throw new UnauthorizedException('사용자를 찾을 수 없습니다.');
       }
       
-      const user: User = { uid: userDoc.id, ...userDoc.data() };
+      const user = { uid: userDoc.id };
       
       // 새 액세스 토큰 발급
       const accessToken = await this.generateAccessToken(user);
@@ -151,16 +151,13 @@ export class AuthService {
       access_token: accessToken,
       refresh_token: refreshToken,
       user: {
-        uid: userRecord.uid,
-        email: userRecord.email || '',
-        displayName: userRecord.displayName || '',
-        photoURL: userRecord.photoURL || '',
+        uid: userRecord.uid
       }
     };
   }
 
   // 카카오 사용자 정보를 기반으로 사용자를 찾거나 생성
-  private async findOrCreateKakaoUser(kakaoUserInfo: any): Promise<User> {
+  private async findOrCreateKakaoUser(kakaoUserInfo: any): Promise<UserAccount> {
     try {
       const kakaoId = kakaoUserInfo.sub;
       const firestore = this.firebaseService.getFirestore();
@@ -172,16 +169,14 @@ export class AuthService {
       if (!snapshot.empty) {
         // 기존 사용자 정보 반환
         const userDoc = snapshot.docs[0];
-        return { uid: userDoc.id, ...userDoc.data() } as User;
+        return { uid: userDoc.id, ...userDoc.data() } as UserAccount;
       } else {
         // 새 사용자 정보 생성
-        const newUser = {
+        const newUser: Omit<UserAccount, 'uid'> = {
           kakaoId: kakaoId,
-          email: kakaoUserInfo.email || '',
-          displayName: kakaoUserInfo.nickname || '',
-          photoURL: kakaoUserInfo.picture || '',
           provider: 'kakao',
           createdAt: new Date(),
+          profileCompleted: false
         };
 
         // Firestore에 사용자 정보 저장
