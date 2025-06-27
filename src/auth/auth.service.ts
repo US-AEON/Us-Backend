@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, NotFoundException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { FirebaseService } from '../firebase/firebase.service';
 import * as jwt from 'jsonwebtoken';
@@ -39,8 +39,6 @@ export class AuthService {
   async generateAccessToken(user: User) {
     const payload = {
       uid: user.uid,
-      email: user.email || '',
-      name: user.displayName || '',
     };
 
     return this.jwtService.sign(payload, {
@@ -111,6 +109,29 @@ export class AuthService {
     } catch (error) {
       console.error('토큰 갱신 실패:', error);
       throw new UnauthorizedException('토큰을 갱신할 수 없습니다.');
+    }
+  }
+
+  // 로그아웃
+  async logout(userId: string) {
+    try {
+      const firestore = this.firebaseService.getFirestore();
+      const tokenDoc = await firestore.collection('refreshTokens').doc(userId).get();
+      
+      if (!tokenDoc.exists) {
+        throw new NotFoundException('로그인 정보를 찾을 수 없습니다.');
+      }
+      
+      // 리프레시 토큰 삭제
+      await firestore.collection('refreshTokens').doc(userId).delete();
+      
+      return {
+        success: true,
+        message: '로그아웃 되었습니다.'
+      };
+    } catch (error) {
+      console.error('로그아웃 실패:', error);
+      throw error;
     }
   }
 

@@ -1,7 +1,16 @@
-import { Body, Controller, Post, HttpCode, HttpStatus } from '@nestjs/common';
+import { Body, Controller, Post, HttpCode, HttpStatus, UseGuards, Req } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { KakaoLoginDto } from './dto/kakao-login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { Request } from 'express';
+
+// JWT 사용자 정보를 포함하는 Request 타입 확장
+interface RequestWithUser extends Request {
+  user: {
+    uid: string;
+  };
+}
 
 @Controller('auth')
 export class AuthController {
@@ -25,6 +34,19 @@ export class AuthController {
     return {
       success: true,
       message: '토큰 갱신 성공',
+      data: result
+    };
+  }
+
+  @Post('logout')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async logout(@Req() request: RequestWithUser) {
+    const userId = request.user.uid;
+    const result = await this.authService.logout(userId);
+    return {
+      success: true,
+      message: '로그아웃 성공',
       data: result
     };
   }
