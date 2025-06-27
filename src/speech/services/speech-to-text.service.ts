@@ -125,14 +125,22 @@ export class SpeechToTextService {
       this.logger.log(`Starting speech-to-text conversion for ${languageCode}`);
       this.logger.log(`Audio buffer size: ${audioBuffer.length} bytes`);
 
+      // 오디오 형식 자동 감지
+      const audioFormat = this.detectAudioFormat(audioBuffer);
+      const sampleRate = audioFormat === 'LINEAR16' ? 16000 : 44100;
+
+      this.logger.log(
+        `Detected audio format: ${audioFormat}, sample rate: ${sampleRate}`,
+      );
+
       // Google Cloud Speech-to-Text API 요청 설정
       const request = {
         audio: {
           content: audioBuffer.toString('base64'),
         },
         config: {
-          encoding: 'MP3' as const,
-          sampleRateHertz: 44100,
+          encoding: audioFormat,
+          sampleRateHertz: sampleRate,
           languageCode: languageCode,
           enableAutomaticPunctuation: true,
           model: 'latest_long',
@@ -198,6 +206,34 @@ export class SpeechToTextService {
       const message = error instanceof Error ? error.message : 'Unknown error';
       throw new Error(`Speech conversion failed: ${message}`);
     }
+  }
+
+  private detectAudioFormat(audioBuffer: Buffer): 'MP3' | 'LINEAR16' {
+    // WAV 파일 헤더 확인 (RIFF 시그니처)
+    if (audioBuffer.length >= 12) {
+      const riffHeader = audioBuffer.subarray(0, 4).toString('ascii');
+      const waveHeader = audioBuffer.subarray(8, 12).toString('ascii');
+      if (riffHeader === 'RIFF' && waveHeader === 'WAVE') {
+        this.logger.log('Audio format detected: WAV (LINEAR16)');
+        return 'LINEAR16';
+      }
+    }
+    // MP3 파일 헤더 확인 (ID3 태그 또는 MP3 프레임 헤더)
+    if (audioBuffer.length >= 3) {
+      const id3Header = audioBuffer.subarray(0, 3).toString('ascii');
+      if (id3Header === 'ID3') {
+        this.logger.log('Audio format detected: MP3 (ID3 tag)');
+        return 'MP3';
+      }
+      // MP3 프레임 헤더 확인 (0xff fb 또는 0xff fa로 시작)
+      if (audioBuffer[0] === 0xff && (audioBuffer[1] & 0xe0) === 0xe0) {
+        this.logger.log('Audio format detected: MP3 (frame header)');
+        return 'MP3';
+      }
+    }
+    // 기본값은 MP3 (이전 호환성)
+    this.logger.log('Audio format detected: MP3 (default fallback)');
+    return 'MP3';
   }
 
   private async simulateProcessing(): Promise<void> {
