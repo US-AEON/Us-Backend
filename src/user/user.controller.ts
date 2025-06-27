@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UseGuards, Req, HttpCode, HttpStatus, Put, Patch } from '@nestjs/common';
+import { Body, Controller, UseGuards, Req, HttpCode, HttpStatus, Put, Patch, Get } from '@nestjs/common';
 import { UserService } from './user.service';
 import { ProfileDto } from './dto/profile.dto';
 import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
@@ -15,6 +15,14 @@ interface RequestWithUser extends Request {
 @Controller('users')
 export class UserController {
   constructor(private readonly userService: UserService) {}
+
+  @Get('profile')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async getUserProfile(@Req() request: RequestWithUser) {
+    const userId = request.user.uid;
+    return await this.userService.getUserProfile(userId);
+  }
 
   @Put('profile')
   @UseGuards(JwtAuthGuard)

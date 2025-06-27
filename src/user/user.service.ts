@@ -2,11 +2,50 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { FirebaseService } from '../firebase/firebase.service';
 import { ProfileDto } from './dto/profile.dto';
 import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
-import { UserProfile } from '../auth/interfaces/user.interface';
 
 @Injectable()
 export class UserService {
   constructor(private readonly firebaseService: FirebaseService) {}
+
+  async getUserProfile(userId: string) {
+    try {
+      const firestore = this.firebaseService.getFirestore();
+      
+      // 사용자 계정 존재 여부 확인
+      const userDoc = await firestore.collection('users').doc(userId).get();
+      
+      if (!userDoc.exists) {
+        throw new NotFoundException('사용자를 찾을 수 없습니다.');
+      }
+      
+      // 프로필 정보 조회
+      const profilesRef = firestore.collection('profiles');
+      const profileQuery = await profilesRef.where('userId', '==', userId).limit(1).get();
+      
+      if (profileQuery.empty) {
+        // 프로필이 없는 경우 에러 응답
+        throw new NotFoundException('프로필이 아직 생성되지 않았습니다. 먼저 프로필을 생성해주세요.');
+      }
+      
+      // 프로필 정보 반환
+      const profileData = profileQuery.docs[0].data();
+      
+      return {
+        success: true,
+        data: {
+          userId,
+          name: profileData.name,
+          birthYear: profileData.birthYear,
+          nationality: profileData.nationality,
+          currentCity: profileData.currentCity,
+          mainLanguage: profileData.mainLanguage
+        }
+      };
+    } catch (error) {
+      console.error('프로필 조회 실패:', error);
+      throw error;
+    }
+  }
 
   async updateProfile(userId: string, profileData: ProfileDto) {
     try {
