@@ -10,6 +10,7 @@ export class ProfileDto {
   @IsInt()
   @Min(1900)
   @Max(new Date().getFullYear())
+  @Type(() => Number)
   birthYear: number;
 
   @IsString()
