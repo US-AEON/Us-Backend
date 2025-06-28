@@ -31,15 +31,12 @@ export class UserService {
       const profileData = profileQuery.docs[0].data();
       
       return {
-        success: true,
-        data: {
-          userId,
-          name: profileData.name,
-          birthYear: profileData.birthYear,
-          nationality: profileData.nationality,
-          currentCity: profileData.currentCity,
-          mainLanguage: profileData.mainLanguage
-        }
+        userId,
+        name: profileData.name,
+        birthYear: profileData.birthYear,
+        nationality: profileData.nationality,
+        currentCity: profileData.currentCity,
+        mainLanguage: profileData.mainLanguage
       };
     } catch (error) {
       console.error('프로필 조회 실패:', error);
@@ -140,11 +137,7 @@ export class UserService {
           updatedAt: new Date()
         });
         
-        return {
-          success: true,
-          message: '프로필이 생성되고 정보가 업데이트되었습니다.',
-          data: defaultProfile
-        };
+        return defaultProfile;
       }
       
       // 업데이트할 필드 준비
@@ -167,11 +160,7 @@ export class UserService {
       // 업데이트된 프로필 정보 반환
       const updatedProfile = await profilesRef.doc(profileDoc.id).get();
       
-      return {
-        success: true,
-        message: '프로필 정보가 업데이트되었습니다.',
-        data: updatedProfile.data()
-      };
+      return updatedProfile.data();
     } catch (error) {
       console.error('프로필 정보 업데이트 실패:', error);
       throw error;
