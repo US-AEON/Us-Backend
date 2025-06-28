@@ -10,15 +10,17 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Get,
+  Param,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { ConversationService } from './services/conversation.service';
 import { ConversationRequestDto } from './dto/conversation-request.dto';
-import { ApiConsumes, ApiOperation, ApiResponse, ApiTags, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiConsumes, ApiOperation, ApiResponse, ApiTags, ApiBody, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { StandardResponse } from '../shared/interfaces/standard-response.interface';
-import { ConversationResult } from './interfaces/conversation-result.interface';
+import { ConversationResult, ConversationMessage } from './interfaces/conversation-result.interface';
 
 @ApiTags('음성')
 @Controller('api/speech')
@@ -119,6 +121,59 @@ export class SpeechController {
       success: true,
       message: '대화가 성공적으로 처리되었습니다.',
       data: result
+    };
+  }
+
+  @ApiOperation({ summary: '대화 이력 조회', description: '특정 대화 세션의 이력을 조회합니다.' })
+  @ApiParam({ name: 'conversationId', description: '대화 세션 ID' })
+  @ApiResponse({ 
+    status: 200, 
+    description: '대화 이력 조회 성공',
+    schema: {
+      type: 'object',
+      properties: {
+        success: {
+          type: 'boolean',
+          example: true,
+        },
+        message: {
+          type: 'string',
+          example: '대화 이력이 성공적으로 조회되었습니다.',
+        },
+        data: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              timestamp: { type: 'string', format: 'date-time' },
+              originalText: { type: 'string' },
+              originalLanguage: { type: 'string' },
+              translatedText: { type: 'string' },
+              translatedLanguage: { type: 'string' },
+              confidence: { type: 'number' },
+            }
+          }
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: '잘못된 요청' })
+  @ApiResponse({ status: 401, description: '인증 실패' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Get('conversation/:conversationId/history')
+  async getConversationHistory(
+    @Param('conversationId') conversationId: string
+  ): Promise<StandardResponse<ConversationMessage[]>> {
+    this.logger.log(`Retrieving conversation history for ID: ${conversationId}`);
+
+    const messages = await this.conversationService.getConversationMessages(conversationId);
+
+    return {
+      success: true,
+      message: '대화 이력이 성공적으로 조회되었습니다.',
+      data: messages
     };
   }
 }
