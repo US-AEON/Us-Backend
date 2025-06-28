@@ -35,6 +35,12 @@ export class PostResponse {
   detectedLanguage: Language;
 
   @ApiProperty({
+    description: '댓글 수',
+    example: 5,
+  })
+  commentCount: number;
+
+  @ApiProperty({
     description: '생성 일시',
     example: '2025-06-28T10:30:00Z',
   })

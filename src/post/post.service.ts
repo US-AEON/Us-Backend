@@ -81,6 +81,7 @@ export class PostService {
         content: createPostDto.content,
         translatedContent,
         detectedLanguage,
+        commentCount: 0, // 새 게시물이므로 댓글 수는 0
         createdAt: new Date(),
       };
     } catch (error) {
@@ -136,12 +137,16 @@ export class PostService {
           }
         }
         
+        // 댓글 수 계산
+        const commentCount = await this.getCommentCountForPost(post.id);
+        
         return {
           id: post.id,
           authorName,
           content: post.content,
           translatedContent,
           detectedLanguage: post.detectedLanguage,
+          commentCount,
           createdAt: post.createdAt,
           updatedAt: post.updatedAt,
         };
@@ -240,12 +245,16 @@ export class PostService {
         ? undefined 
         : postData.translations[mainLanguage];
       
+      // 댓글 수 계산
+      const commentCount = await this.getCommentCountForPost(postDoc.id);
+      
       return {
         id: postDoc.id,
         authorName,
         content: postData.content,
         translatedContent,
         detectedLanguage: postData.detectedLanguage,
+        commentCount,
         createdAt: postData.createdAt.toDate(),
         updatedAt: postData.updatedAt?.toDate(),
       };
@@ -280,5 +289,23 @@ export class PostService {
     }
     
     return translations as { [key in Language]: string };
+  }
+
+  // 특정 게시물의 댓글 수 계산
+  private async getCommentCountForPost(postId: string): Promise<number> {
+    try {
+      const firestore = this.firebaseService.getFirestore();
+      
+      // 게시물의 댓글 수 조회
+      const commentsSnapshot = await firestore
+        .collection('comments')
+        .where('postId', '==', postId)
+        .get();
+      
+      return commentsSnapshot.size;
+    } catch (error) {
+      console.error('댓글 수 조회 실패:', error);
+      return 0; // 오류 시 0 반환
+    }
   }
 } 
