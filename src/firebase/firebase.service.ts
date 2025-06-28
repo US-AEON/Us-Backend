@@ -82,9 +82,15 @@ export class FirebaseService implements OnModuleInit {
       // Firebase 초기화
       admin.initializeApp(firebaseConfig);
 
+      // undefined 속성 무시 옵션 활성화
+      admin.firestore().settings({
+        ignoreUndefinedProperties: true,
+      });
+
       console.log(
         `Firebase 초기화 완료 (프로젝트 ID: ${firebaseConfig.projectId})`,
       );
+      console.log('Firestore: ignoreUndefinedProperties 옵션이 활성화되었습니다.');
     } catch (error) {
       console.error('Firebase 초기화 오류:', error);
     }
