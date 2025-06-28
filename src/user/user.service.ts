@@ -166,4 +166,73 @@ export class UserService {
       throw error;
     }
   }
+
+  async checkOnboardingStatus(userId: string): Promise<boolean> {
+    try {
+      const firestore = this.firebaseService.getFirestore();
+      
+      // 사용자 계정 존재 여부 확인
+      const userDoc = await firestore.collection('users').doc(userId).get();
+      
+      if (!userDoc.exists) {
+        return false;
+      }
+      
+      // 사용자 계정에서 프로필 완료 상태 확인
+      const userData = userDoc.data() || {};
+      if (userData.profileCompleted === true) {
+        return true;
+      }
+      
+      // 또는 프로필 컬렉션에서 직접 확인
+      const profilesRef = firestore.collection('profiles');
+      const profileQuery = await profilesRef.where('userId', '==', userId).limit(1).get();
+      
+      if (profileQuery.empty) {
+        return false;
+      }
+      
+      // 프로필 데이터가 완전한지 확인
+      const profileData = profileQuery.docs[0].data();
+      const isComplete = !!(
+        profileData.name && 
+        profileData.birthYear && 
+        profileData.nationality && 
+        profileData.currentCity && 
+        profileData.mainLanguage
+      );
+      
+      return isComplete;
+    } catch (error) {
+      console.error('온보딩 상태 확인 실패:', error);
+      return false;
+    }
+  }
+
+  async checkWorkspaceStatus(userId: string): Promise<boolean> {
+    try {
+      const firestore = this.firebaseService.getFirestore();
+      
+      // 사용자 계정 존재 여부 확인
+      const userDoc = await firestore.collection('users').doc(userId).get();
+      
+      if (!userDoc.exists) {
+        return false;
+      }
+      
+      // 워크스페이스 ID 확인
+      const userData = userDoc.data() || {};
+      if (!userData.workspaceId) {
+        return false;
+      }
+      
+      // 워크스페이스가 실제로 존재하는지 확인
+      const workspaceDoc = await firestore.collection('workspaces').doc(userData.workspaceId).get();
+      
+      return workspaceDoc.exists;
+    } catch (error) {
+      console.error('워크스페이스 상태 확인 실패:', error);
+      return false;
+    }
+  }
 } 
