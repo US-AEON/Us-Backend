@@ -5,7 +5,11 @@ import { FirebaseModule } from './firebase/firebase.module';
 import { GeminiModule } from './integrations/gemini/gemini.module';
 import { SpeechModule } from './speech/speech.module';
 import { AuthModule } from './auth/auth.module';
+import { UserModule } from './user/user.module';
 import { ConfigModule } from '@nestjs/config';
+import { WorkspaceModule } from './workspace/workspace.module';
+import { PostModule } from './post/post.module';
+import { CommentModule } from './comment/comment.module';
 
 @Module({
   imports: [
@@ -15,7 +19,11 @@ import { ConfigModule } from '@nestjs/config';
     FirebaseModule, 
     SpeechModule, 
     GeminiModule,
-    AuthModule
+    AuthModule,
+    UserModule,
+    WorkspaceModule,
+    PostModule,
+    CommentModule
   ],
   controllers: [AppController],
   providers: [AppService],
