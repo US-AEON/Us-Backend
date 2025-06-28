@@ -19,6 +19,82 @@ interface RequestWithUser extends Request {
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
+  @ApiOperation({ summary: '온보딩 완료 여부 체크', description: '사용자가 온보딩(프로필 작성)을 완료했는지 확인합니다.' })
+  @ApiResponse({ 
+    status: 200, 
+    description: '온보딩 체크 성공',
+    schema: {
+      type: 'object',
+      properties: {
+        success: {
+          type: 'boolean',
+          example: true,
+        },
+        message: {
+          type: 'string',
+          example: '온보딩 상태 확인 완료',
+        },
+        data: {
+          type: 'boolean',
+          example: true,
+          description: 'true: 온보딩 완료, false: 온보딩 미완료'
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: '인증 실패' })
+  @ApiBearerAuth()
+  @Get('onboarding-status')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async checkOnboardingStatus(@Req() request: RequestWithUser): Promise<StandardResponse<boolean>> {
+    const userId = request.user.uid;
+    const isCompleted = await this.userService.checkOnboardingStatus(userId);
+    return {
+      success: true,
+      message: '온보딩 상태 확인 완료',
+      data: isCompleted
+    };
+  }
+
+  @ApiOperation({ summary: '워크스페이스 참여 여부 체크', description: '사용자가 워크스페이스에 참여했는지 확인합니다.' })
+  @ApiResponse({ 
+    status: 200, 
+    description: '워크스페이스 참여 상태 체크 성공',
+    schema: {
+      type: 'object',
+      properties: {
+        success: {
+          type: 'boolean',
+          example: true,
+        },
+        message: {
+          type: 'string',
+          example: '워크스페이스 참여 상태 확인 완료',
+        },
+        data: {
+          type: 'boolean',
+          example: true,
+          description: 'true: 워크스페이스 참여, false: 워크스페이스 미참여'
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: '인증 실패' })
+  @ApiBearerAuth()
+  @Get('workspace-status')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async checkWorkspaceStatus(@Req() request: RequestWithUser): Promise<StandardResponse<boolean>> {
+    const userId = request.user.uid;
+    const hasWorkspace = await this.userService.checkWorkspaceStatus(userId);
+    return {
+      success: true,
+      message: '워크스페이스 참여 상태 확인 완료',
+      data: hasWorkspace
+    };
+  }
+
   @ApiOperation({ summary: '사용자 프로필 조회', description: '현재 로그인한 사용자의 프로필 정보를 조회합니다.' })
   @ApiResponse({ 
     status: 200, 
