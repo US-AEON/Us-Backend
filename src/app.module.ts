@@ -7,6 +7,7 @@ import { SpeechModule } from './speech/speech.module';
 import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
 import { ConfigModule } from '@nestjs/config';
+import { WorkspaceModule } from './workspace/workspace.module';
 
 @Module({
   imports: [
@@ -17,7 +18,8 @@ import { ConfigModule } from '@nestjs/config';
     SpeechModule, 
     GeminiModule,
     AuthModule,
-    UserModule
+    UserModule,
+    WorkspaceModule
   ],
   controllers: [AppController],
   providers: [AppService],
