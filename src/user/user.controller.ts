@@ -5,6 +5,7 @@ import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Request } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { StandardResponse } from '../shared/interfaces/standard-response.interface';
 
 // JWT 사용자 정보를 포함하는 Request 타입 확장
 interface RequestWithUser extends Request {
@@ -25,29 +26,42 @@ export class UserController {
     schema: {
       type: 'object',
       properties: {
-        id: {
-          type: 'string',
-          example: 'user123',
+        success: {
+          type: 'boolean',
+          example: true,
         },
-        name: {
+        message: {
           type: 'string',
-          example: '홍길동',
+          example: '프로필 조회 성공',
         },
-        birthYear: {
-          type: 'number',
-          example: 1990,
-        },
-        nationality: {
-          type: 'string',
-          example: '대한민국',
-        },
-        currentCity: {
-          type: 'string',
-          example: '서울',
-        },
-        mainLanguage: {
-          type: 'string',
-          example: '한국어',
+        data: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              example: 'user123',
+            },
+            name: {
+              type: 'string',
+              example: '홍길동',
+            },
+            birthYear: {
+              type: 'number',
+              example: 1990,
+            },
+            nationality: {
+              type: 'string',
+              example: '대한민국',
+            },
+            currentCity: {
+              type: 'string',
+              example: '서울',
+            },
+            mainLanguage: {
+              type: 'string',
+              example: '한국어',
+            },
+          },
         },
       },
     },
@@ -58,9 +72,14 @@ export class UserController {
   @Get('profile')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
-  async getUserProfile(@Req() request: RequestWithUser) {
+  async getUserProfile(@Req() request: RequestWithUser): Promise<StandardResponse<any>> {
     const userId = request.user.uid;
-    return await this.userService.getUserProfile(userId);
+    const profile = await this.userService.getUserProfile(userId);
+    return {
+      success: true,
+      message: '프로필 조회 성공',
+      data: profile
+    };
   }
 
   @ApiOperation({ summary: '프로필 전체 업데이트', description: '사용자 프로필 정보를 전체 업데이트합니다.' })
@@ -119,7 +138,7 @@ export class UserController {
   async updateProfile(
     @Body() profileData: ProfileDto,
     @Req() request: RequestWithUser,
-  ) {
+  ): Promise<StandardResponse<any>> {
     const userId = request.user.uid;
     const result = await this.userService.updateProfile(userId, profileData);
     return {
@@ -136,17 +155,30 @@ export class UserController {
     schema: {
       type: 'object',
       properties: {
-        id: {
-          type: 'string',
-          example: 'user123',
+        success: {
+          type: 'boolean',
+          example: true,
         },
-        currentCity: {
+        message: {
           type: 'string',
-          example: '서울',
+          example: '프로필 정보가 성공적으로 업데이트되었습니다.',
         },
-        mainLanguage: {
-          type: 'string',
-          example: '한국어',
+        data: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              example: 'user123',
+            },
+            currentCity: {
+              type: 'string',
+              example: '서울',
+            },
+            mainLanguage: {
+              type: 'string',
+              example: '한국어',
+            },
+          },
         },
       },
     },
@@ -160,8 +192,13 @@ export class UserController {
   async updateUserProfile(
     @Body() updateData: UpdateUserProfileDto,
     @Req() request: RequestWithUser,
-  ) {
+  ): Promise<StandardResponse<any>> {
     const userId = request.user.uid;
-    return await this.userService.updateUserProfile(userId, updateData);
+    const result = await this.userService.updateUserProfile(userId, updateData);
+    return {
+      success: true,
+      message: '프로필 정보가 성공적으로 업데이트되었습니다.',
+      data: result
+    };
   }
 } 

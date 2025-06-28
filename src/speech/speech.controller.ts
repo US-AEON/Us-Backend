@@ -7,23 +7,32 @@ import {
   Logger,
   BadRequestException,
   Res,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { ConversationService } from './services/conversation.service';
 import { ConversationRequestDto } from './dto/conversation-request.dto';
-import { ApiConsumes, ApiOperation, ApiResponse, ApiTags, ApiBody } from '@nestjs/swagger';
+import { ApiConsumes, ApiOperation, ApiResponse, ApiTags, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { StandardResponse } from '../shared/interfaces/standard-response.interface';
+import { ConversationResult } from './interfaces/conversation-result.interface';
 
-@ApiTags('음성 대화')
+@ApiTags('음성')
 @Controller('api/speech')
 export class SpeechController {
   private readonly logger = new Logger(SpeechController.name);
 
-  constructor(private readonly conversationService: ConversationService) {}
+  constructor(
+    private readonly conversationService: ConversationService
+  ) {}
 
-  @ApiOperation({ summary: '음성 대화 처리', description: '음성 파일을 업로드하여 대화를 처리합니다.' })
+  @ApiOperation({ summary: '음성 대화', description: '음성 파일을 업로드하여 대화를 처리합니다.' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
+    description: '음성 파일과 대화 설정',
     schema: {
       type: 'object',
       properties: {
@@ -55,67 +64,61 @@ export class SpeechController {
           type: 'boolean',
           example: true,
         },
-        data: {
-          $ref: '#/components/schemas/ConversationResult',
-        },
         message: {
           type: 'string',
           example: '대화가 성공적으로 처리되었습니다.',
+        },
+        data: {
+          type: 'object',
+          properties: {
+            inputText: {
+              type: 'string',
+              example: '안녕하세요, 오늘 날씨는 어때요?',
+            },
+            responseText: {
+              type: 'string',
+              example: '안녕하세요! 오늘은 맑고 화창한 날씨입니다. 최고 기온은 25도로 예상됩니다.',
+            },
+            audioUrl: {
+              type: 'string',
+              example: 'https://storage.googleapis.com/project-id/audio/response-123456.mp3',
+            },
+            detectedLanguage: {
+              type: 'string',
+              example: 'ko',
+            },
+          },
         },
       },
     },
   })
   @ApiResponse({ status: 400, description: '잘못된 요청' })
-  @ApiResponse({ status: 500, description: '서버 오류' })
+  @ApiResponse({ status: 401, description: '인증 실패' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @Post('conversation')
+  @HttpCode(HttpStatus.OK)
   @UseInterceptors(FileInterceptor('audio'))
   async processConversation(
     @UploadedFile() audioFile: Express.Multer.File,
-    @Body() body: ConversationRequestDto,
-    @Res() res: Response,
-  ) {
-    try {
-      if (!audioFile) {
-        throw new BadRequestException('음성 파일이 필요합니다.');
-      }
+    @Body() body: ConversationRequestDto
+  ): Promise<StandardResponse<ConversationResult>> {
+    this.logger.log(`Processing conversation`);
+    this.logger.log(`Selected foreign language: ${body.selectedForeignLanguage}`);
+    this.logger.log(`Conversation ID: ${body.conversationId || 'new'}`);
 
-      if (!body.selectedForeignLanguage) {
-        throw new BadRequestException('selectedForeignLanguage가 필요합니다.');
-      }
+    const result = await this.conversationService.processConversation(
+      audioFile.buffer,
+      body.selectedForeignLanguage,
+      body.conversationId,
+    );
 
-      this.logger.log(`Processing conversation`);
-      this.logger.log(
-        `Selected foreign language: ${body.selectedForeignLanguage}`,
-      );
-      this.logger.log(`Conversation ID: ${body.conversationId || 'new'}`);
+    this.logger.log(`Conversation processing completed`);
 
-      const result = await this.conversationService.processConversation(
-        audioFile.buffer,
-        body.selectedForeignLanguage,
-        body.conversationId,
-      );
-
-      this.logger.log(`Conversation processing completed`);
-      this.logger.log(
-        `Original: "${result.message.originalText}" (${result.message.originalLanguage})`,
-      );
-      this.logger.log(
-        `Translated: "${result.message.translatedText}" (${result.message.translatedLanguage})`,
-      );
-
-      res.json({
-        success: true,
-        data: result,
-        message: '대화가 성공적으로 처리되었습니다.',
-      });
-    } catch (error) {
-      this.logger.error('Conversation processing failed:', error);
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      res.status(500).json({
-        success: false,
-        error: message,
-        message: '대화 처리 중 오류가 발생했습니다.',
-      });
-    }
+    return {
+      success: true,
+      message: '대화가 성공적으로 처리되었습니다.',
+      data: result
+    };
   }
 }

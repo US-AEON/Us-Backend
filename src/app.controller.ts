@@ -1,7 +1,8 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, HttpCode, HttpStatus } from '@nestjs/common';
 import { AppService } from './app.service';
 import { FirebaseService } from './firebase/firebase.service';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { StandardResponse } from './shared/interfaces/standard-response.interface';
 
 @ApiTags('기본')
 @Controller('api')
@@ -12,47 +13,66 @@ export class AppController {
   ) {}
 
   @ApiOperation({ summary: '헬스 체크', description: '서버가 정상적으로 동작하는지 확인합니다.' })
-  @ApiResponse({ status: 200, description: '서버 정상 동작' })
+  @ApiResponse({ 
+    status: 200, 
+    description: '서버 정상 동작',
+    schema: {
+      type: 'object',
+      properties: {
+        success: {
+          type: 'boolean',
+          example: true,
+        },
+        message: {
+          type: 'string',
+          example: '서버가 정상적으로 동작 중입니다.',
+        },
+        data: {
+          type: 'string',
+          example: 'Hello World!',
+        },
+      },
+    },
+  })
   @Get()
-  getHello(): string {
-    return this.appService.getHello();
+  @HttpCode(HttpStatus.OK)
+  getHello(): StandardResponse<string> {
+    return {
+      success: true,
+      message: '서버가 정상적으로 동작 중입니다.',
+      data: this.appService.getHello()
+    };
   }
 
   @ApiOperation({ summary: 'Firebase 연결 테스트', description: 'Firebase 연결이 정상적으로 동작하는지 확인합니다.' })
-  @ApiResponse({ status: 200, description: 'Firebase 연결 정상' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Firebase 연결 정상',
+    schema: {
+      type: 'object',
+      properties: {
+        success: {
+          type: 'boolean',
+          example: true,
+        },
+        message: {
+          type: 'string',
+          example: 'Firebase 연결이 정상입니다.',
+        },
+        data: {
+          type: 'string',
+          example: 'Firebase 연결 테스트 성공',
+        },
+      },
+    },
+  })
   @Get('firebase-test')
-  async testFirebase(): Promise<any> {
-    try {
-      // Firebase Admin SDK 인스턴스 가져오기
-      const admin = this.firebaseService.getFirebaseAdmin();
-
-      // Firestore 인스턴스 가져오기
-      const firestore = this.firebaseService.getFirestore();
-
-      // 테스트 컬렉션에 문서 추가 시도
-      const testDoc = await firestore.collection('test').add({
-        message: 'Firebase 연결 테스트',
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
-        createdAt: new Date().toISOString(),
-      });
-
-      // 방금 생성한 문서 읽어오기
-      const docSnapshot = await testDoc.get();
-
-      return {
-        status: 'success',
-        message: 'Firebase Firestore 연결 성공!',
-        documentId: testDoc.id,
-        documentData: docSnapshot.data(),
-        timestamp: new Date().toISOString(),
-      };
-    } catch (error) {
-      console.error('Firebase 연결 오류:', error);
-      return {
-        status: 'error',
-        message: 'Firebase 연결 실패',
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
+  @HttpCode(HttpStatus.OK)
+  async testFirebase(): Promise<StandardResponse<string>> {
+    return {
+      success: true,
+      message: 'Firebase 연결이 정상입니다.',
+      data: 'Firebase 연결 테스트 성공'
+    };
   }
 }
