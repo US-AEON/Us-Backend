@@ -61,6 +61,13 @@ export class ConversationMessage {
     required: false,
   })
   translatedLanguage?: Language;
+
+  @ApiProperty({
+    description: 'Base64로 인코딩된 오디오 데이터',
+    example: 'data:audio/mp3;base64,UklGRn...',
+    required: false,
+  })
+  audioData?: string;
 }
 
 export class ConversationResult {

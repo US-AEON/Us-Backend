@@ -314,6 +314,7 @@ export class ConversationService {
       timestamp: new Date(),
       originalText: params.originalText,
       originalLanguage: originalLanguage,
+      audioData: params.audioBuffer.toString('base64'),
       ...(isSameLanguage ? {} : {
         translatedText: params.translatedText,
         translatedLanguage: translatedLanguage,
