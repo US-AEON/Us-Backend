@@ -5,9 +5,10 @@ import { TextToSpeechService } from './services/text-to-speech.service';
 import { ConversationService } from './services/conversation.service';
 import { GeminiModule } from '../integrations/gemini/gemini.module';
 import { FirebaseModule } from '../firebase/firebase.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [GeminiModule, FirebaseModule],
+  imports: [GeminiModule, FirebaseModule, AuthModule],
   controllers: [SpeechController],
   providers: [SpeechToTextService, TextToSpeechService, ConversationService],
   exports: [ConversationService],
