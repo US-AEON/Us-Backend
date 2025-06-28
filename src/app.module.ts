@@ -8,6 +8,8 @@ import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
 import { ConfigModule } from '@nestjs/config';
 import { WorkspaceModule } from './workspace/workspace.module';
+import { PostModule } from './post/post.module';
+import { CommentModule } from './comment/comment.module';
 
 @Module({
   imports: [
@@ -19,7 +21,9 @@ import { WorkspaceModule } from './workspace/workspace.module';
     GeminiModule,
     AuthModule,
     UserModule,
-    WorkspaceModule
+    WorkspaceModule,
+    PostModule,
+    CommentModule
   ],
   controllers: [AppController],
   providers: [AppService],
