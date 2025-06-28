@@ -145,4 +145,21 @@ export class GeminiService implements OnModuleInit {
       throw new Error(`번역 중 오류가 발생했습니다: ${message}`);
     }
   }
+
+  // 커스텀 프롬프트로 생성
+  async generateWithPrompt(prompt: string): Promise<string> {
+    try {
+      if (!this.model) {
+        throw new Error('Gemini 모델이 초기화되지 않았습니다.');
+      }
+
+      const result = await this.model.generateContent(prompt);
+      const response = result.response;
+      return response.text().replace(/\n/g, ' ').trim();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Gemini 생성 오류: ${message}`);
+      throw new Error(`텍스트 생성 중 오류가 발생했습니다: ${message}`);
+    }
+  }
 }

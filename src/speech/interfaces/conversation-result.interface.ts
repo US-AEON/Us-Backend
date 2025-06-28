@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { Language } from '../../shared/constants/language.constants';
 
 export class DetectedLanguageResult {
   @ApiProperty({
@@ -40,35 +41,26 @@ export class ConversationMessage {
   originalText: string;
 
   @ApiProperty({
-    description: '원본 언어 코드',
-    example: 'ko-KR',
+    description: '원본 언어',
+    enum: Language,
+    example: '한국어',
   })
-  originalLanguage: string;
+  originalLanguage: Language;
 
   @ApiProperty({
     description: '번역된 텍스트',
     example: 'Hello',
-  })
-  translatedText: string;
-
-  @ApiProperty({
-    description: '번역 대상 언어 코드',
-    example: 'en-US',
-  })
-  translatedLanguage: string;
-
-  @ApiProperty({
-    description: '음성 인식 신뢰도',
-    example: 0.95,
-  })
-  confidence: number;
-
-  @ApiProperty({
-    description: '음성 데이터 (base64)',
-    example: 'data:audio/wav;base64,UklGRiXu...',
     required: false,
   })
-  audioData?: string;
+  translatedText?: string;
+
+  @ApiProperty({
+    description: '번역 대상 언어',
+    enum: Language,
+    example: 'English',
+    required: false,
+  })
+  translatedLanguage?: Language;
 }
 
 export class ConversationResult {

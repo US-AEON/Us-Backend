@@ -10,8 +10,11 @@ import {
 import {
   Language,
   DEFAULT_LANGUAGE_CODE,
+  LANGUAGE_NAMES,
 } from '../../shared/constants/language.constants';
 import { v4 as uuidv4 } from 'uuid';
+import { FirebaseService } from '../../firebase/firebase.service';
+import * as admin from 'firebase-admin';
 
 interface DualSpeechRecognitionResult {
   korean: { transcript: string; confidence: number };
@@ -38,6 +41,7 @@ export class ConversationService {
     private readonly speechToTextService: SpeechToTextService,
     private readonly textToSpeechService: TextToSpeechService,
     private readonly geminiService: GeminiService,
+    private readonly firebaseService: FirebaseService,
   ) {}
 
   async processConversation(
@@ -49,6 +53,9 @@ export class ConversationService {
     this.logger.log('Starting conversation processing');
 
     try {
+      // 대화 ID 설정
+      const conversationId = existingConversationId || uuidv4();
+      
       // Phase 1: Dual speech recognition
       const speechRecognitionResults = await this.performDualSpeechRecognition(
         inputAudioBuffer,
@@ -65,23 +72,29 @@ export class ConversationService {
         `Detected language: ${detectedLanguageResult.detectedLanguage}`,
       );
 
-      // Phase 3: Translation
+      // Phase 3: 이전 대화 이력 가져오기
+      const conversationHistory = await this.getConversationHistory(conversationId);
+      
+      // Phase 4: Translation with context
       const translationTask = this.createTranslationTask(
         detectedLanguageResult,
         targetForeignLanguageCode,
       );
 
-      const translatedText = await this.performTranslation(translationTask);
+      const translatedText = await this.performTranslationWithContext(
+        translationTask,
+        conversationHistory
+      );
       this.logger.log(`Translation completed: "${translatedText}"`);
 
-      // Phase 4: Text-to-speech synthesis
+      // Phase 5: Text-to-speech synthesis
       const synthesizedAudioBuffer =
         await this.textToSpeechService.convertTextToSpeech(
           translatedText,
           translationTask.targetLanguage,
         );
 
-      // Phase 5: Message creation
+      // Phase 6: Message creation
       const conversationMessage = this.createConversationMessage({
         originalText: detectedLanguageResult.transcript,
         originalLanguage: detectedLanguageResult.detectedLanguage,
@@ -91,7 +104,9 @@ export class ConversationService {
         audioBuffer: synthesizedAudioBuffer,
       });
 
-      const finalConversationId = existingConversationId || uuidv4();
+      // Phase 7: 대화 이력 저장
+      await this.storeConversationMessage(conversationId, conversationMessage);
+
       const processingDuration = Date.now() - processingStartTime;
 
       this.logger.log(
@@ -101,11 +116,67 @@ export class ConversationService {
       return {
         success: true,
         message: conversationMessage,
-        conversationId: finalConversationId,
+        conversationId: conversationId,
       };
     } catch (error) {
       this.logger.error('Conversation processing failed:', error);
       throw error;
+    }
+  }
+
+  // Firestore에서 대화 이력 가져오기
+  private async getConversationHistory(conversationId: string): Promise<ConversationMessage[]> {
+    try {
+      const firestore = this.firebaseService.getFirestore();
+      const conversationDoc = await firestore
+        .collection('conversations')
+        .doc(conversationId)
+        .get();
+
+      if (!conversationDoc.exists) {
+        return [];
+      }
+
+      const data = conversationDoc.data();
+      return (data?.messages || []) as ConversationMessage[];
+    } catch (error) {
+      this.logger.error('Failed to get conversation history:', error);
+      return [];
+    }
+  }
+
+  // Firestore에 대화 메시지 저장
+  private async storeConversationMessage(
+    conversationId: string,
+    message: ConversationMessage,
+  ): Promise<void> {
+    try {
+      const firestore = this.firebaseService.getFirestore();
+      
+      // 대화 문서 참조
+      const conversationRef = firestore.collection('conversations').doc(conversationId);
+      
+      // 현재 대화 문서 가져오기
+      const conversationDoc = await conversationRef.get();
+      
+      if (conversationDoc.exists) {
+        // 기존 메시지에 새 메시지 추가
+        await conversationRef.update({
+          messages: admin.firestore.FieldValue.arrayUnion(message),
+          updatedAt: new Date(),
+        });
+      } else {
+        // 새 대화 문서 생성
+        await conversationRef.set({
+          messages: [message],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }
+      
+      this.logger.log(`Conversation message stored for ID: ${conversationId}`);
+    } catch (error) {
+      this.logger.error('Failed to store conversation message:', error);
     }
   }
 
@@ -173,26 +244,53 @@ export class ConversationService {
     };
   }
 
-  private async performTranslation(task: TranslationTask): Promise<string> {
+  // 문맥을 고려한 번역 수행
+  private async performTranslationWithContext(
+    task: TranslationTask,
+    conversationHistory: ConversationMessage[],
+  ): Promise<string> {
     const isTranslatingFromKorean =
       task.sourceLanguage === DEFAULT_LANGUAGE_CODE;
+
+    // 문맥 기반 프롬프트 생성
+    let contextPrompt = '';
+    if (conversationHistory && conversationHistory.length > 0) {
+      // 최근 5개 메시지만 사용
+      const recentMessages = conversationHistory.slice(-5);
+      
+      contextPrompt = '다음은 이전 대화 내용입니다:\n\n';
+      recentMessages.forEach((msg, index) => {
+        contextPrompt += `[${index + 1}] 원본(${msg.originalLanguage}): "${msg.originalText}"\n`;
+        contextPrompt += `    번역(${msg.translatedLanguage}): "${msg.translatedText}"\n\n`;
+      });
+    }
 
     if (isTranslatingFromKorean) {
       const targetLanguageEnum = this.getLanguageEnumFromCode(
         task.targetLanguage,
       );
-      return this.geminiService.translateFromKorean(
-        task.sourceText,
-        targetLanguageEnum,
-      );
+      
+      // 문맥을 포함한 번역 프롬프트
+      const prompt = `${contextPrompt}
+위 대화 맥락을 고려하여 다음 한국어 텍스트를 ${LANGUAGE_NAMES[targetLanguageEnum]}(${targetLanguageEnum})로 번역해주세요.
+번역된 텍스트만 반환하세요:
+
+"${task.sourceText}"`;
+
+      return this.geminiService.generateWithPrompt(prompt);
     } else {
       const sourceLanguageEnum = this.getLanguageEnumFromCode(
         task.sourceLanguage,
       );
-      return this.geminiService.translateToKorean(
-        task.sourceText,
-        sourceLanguageEnum,
-      );
+      
+      // 문맥을 포함한 번역 프롬프트
+      const prompt = `${contextPrompt}
+위 대화 맥락을 고려하여 다음 ${LANGUAGE_NAMES[sourceLanguageEnum]}(${sourceLanguageEnum}) 텍스트를 한국어로 번역해주세요.
+번역된 텍스트만 반환하세요:
+
+"${task.sourceText}"`;
+
+      return this.geminiService.generateWithPrompt(prompt);
     }
   }
 
@@ -204,15 +302,22 @@ export class ConversationService {
     confidence: number;
     audioBuffer: Buffer;
   }): ConversationMessage {
+    // 언어 코드를 Language enum으로 변환
+    const originalLanguage = this.getLanguageEnumFromCode(params.originalLanguage);
+    const translatedLanguage = this.getLanguageEnumFromCode(params.translatedLanguage);
+    
+    // 원본 언어와 번역 언어가 같으면 번역 정보 생략
+    const isSameLanguage = originalLanguage === translatedLanguage;
+    
     return {
       id: uuidv4(),
       timestamp: new Date(),
       originalText: params.originalText,
-      originalLanguage: params.originalLanguage,
-      translatedText: params.translatedText,
-      translatedLanguage: params.translatedLanguage,
-      confidence: params.confidence,
-      audioData: params.audioBuffer.toString('base64'),
+      originalLanguage: originalLanguage,
+      ...(isSameLanguage ? {} : {
+        translatedText: params.translatedText,
+        translatedLanguage: translatedLanguage,
+      }),
     };
   }
 
@@ -227,5 +332,10 @@ export class ConversationService {
     }
 
     return language;
+  }
+  
+  // 대화 이력 조회 API용 메서드
+  async getConversationMessages(conversationId: string): Promise<ConversationMessage[]> {
+    return this.getConversationHistory(conversationId);
   }
 }
