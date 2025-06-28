@@ -339,4 +339,229 @@ export class ConversationService {
   async getConversationMessages(conversationId: string): Promise<ConversationMessage[]> {
     return this.getConversationHistory(conversationId);
   }
+
+  // 새로운 대화록 시스템 메서드들
+
+  // 새 대화록 세션 생성 또는 기존 세션에 추가
+  async addToConversationSession(
+    inputAudioBuffer: Buffer,
+    targetForeignLanguageCode: string,
+    existingSessionId?: string,
+  ): Promise<{ sessionId: string; pair: ConversationPair; audioBuffer: Buffer }> {
+    const processingStartTime = Date.now();
+    this.logger.log('Starting conversation session processing');
+
+    try {
+      // Phase 1: 음성 인식 및 번역 (기존 로직 재사용)
+      const speechRecognitionResults = await this.performDualSpeechRecognition(
+        inputAudioBuffer,
+        targetForeignLanguageCode,
+      );
+
+      const detectedLanguageResult = this.selectBestRecognitionResult(
+        speechRecognitionResults,
+        targetForeignLanguageCode,
+      );
+
+      const translationTask = this.createTranslationTask(
+        detectedLanguageResult,
+        targetForeignLanguageCode,
+      );
+
+      // 이전 대화 이력이 있으면 컨텍스트 활용
+      let conversationHistory: ConversationMessage[] = [];
+      if (existingSessionId) {
+        conversationHistory = await this.getConversationHistory(existingSessionId);
+      }
+
+      const translatedText = await this.performTranslationWithContext(
+        translationTask,
+        conversationHistory
+      );
+
+      // Phase 2: TTS 생성
+      const synthesizedAudioBuffer = await this.textToSpeechService.convertTextToSpeech(
+        translatedText,
+        translationTask.targetLanguage,
+      );
+
+      // Phase 3: ConversationPair 생성
+      const pair: ConversationPair = {
+        originalText: detectedLanguageResult.transcript,
+        originalLanguage: detectedLanguageResult.detectedLanguage,
+        translatedText,
+        translatedLanguage: translationTask.targetLanguage,
+        timestamp: new Date(),
+        confidence: detectedLanguageResult.confidence,
+      };
+
+      // Phase 4: 세션에 저장
+      const sessionId = existingSessionId || uuidv4();
+      await this.storeConversationPair(sessionId, pair);
+
+      const processingDuration = Date.now() - processingStartTime;
+      this.logger.log(`Conversation session processing completed in ${processingDuration}ms`);
+
+      return {
+        sessionId,
+        pair,
+        audioBuffer: synthesizedAudioBuffer,
+      };
+    } catch (error) {
+      this.logger.error('Conversation session processing failed:', error);
+      throw error;
+    }
+  }
+
+  // 대화록 세션에 ConversationPair 저장
+  private async storeConversationPair(sessionId: string, pair: ConversationPair): Promise<void> {
+    try {
+      const firestore = this.firebaseService.getFirestore();
+      const sessionRef = firestore.collection('conversationSessions').doc(sessionId);
+      
+      const sessionDoc = await sessionRef.get();
+      
+      if (sessionDoc.exists) {
+        // 기존 세션에 쌍 추가
+        await sessionRef.update({
+          pairs: admin.firestore.FieldValue.arrayUnion(pair),
+          updatedAt: new Date(),
+        });
+      } else {
+        // 새 세션 생성
+        const newSession = {
+          isTemporary: true,
+          pairs: [pair],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+        await sessionRef.set(newSession);
+      }
+      
+      this.logger.log(`Conversation pair stored for session: ${sessionId}`);
+    } catch (error) {
+      this.logger.error('Failed to store conversation pair:', error);
+      throw error;
+    }
+  }
+
+  // 대화록 저장 (요약 제목 생성)
+  async saveConversationSession(sessionId: string): Promise<{ title: string; sessionId: string }> {
+    try {
+      this.logger.log(`Saving conversation session: ${sessionId}`);
+      const firestore = this.firebaseService.getFirestore();
+      const sessionRef = firestore.collection('conversationSessions').doc(sessionId);
+      
+      const sessionDoc = await sessionRef.get();
+      if (!sessionDoc.exists) {
+        throw new Error('대화록 세션을 찾을 수 없습니다.');
+      }
+      
+      const sessionData = sessionDoc.data();
+      const pairs = sessionData?.pairs || [];
+      
+      if (pairs.length === 0) {
+        throw new Error('저장할 대화 내용이 없습니다.');
+      }
+      
+      // Gemini로 요약 제목 생성
+      const title = await this.generateConversationTitle(pairs);
+      
+      // 세션을 영구 저장으로 변경
+      await sessionRef.update({
+        title,
+        isTemporary: false,
+        savedAt: new Date(),
+        updatedAt: new Date(),
+      });
+      
+      this.logger.log(`Conversation session saved with title: ${title}`);
+      
+      return { title, sessionId };
+    } catch (error) {
+      this.logger.error('Failed to save conversation session:', error);
+      throw error;
+    }
+  }
+
+  // Gemini로 대화록 요약 제목 생성
+  private async generateConversationTitle(pairs: ConversationPair[]): Promise<string> {
+    try {
+      // 대화 내용을 텍스트로 조합
+      const conversationText = pairs.map(pair => 
+        `[${pair.originalLanguage}] ${pair.originalText} → [${pair.translatedLanguage}] ${pair.translatedText}`
+      ).join('\n');
+      
+      const prompt = `다음 대화 내용을 바탕으로 간단하고 명확한 제목을 한국어로 생성해주세요. 제목은 15자 이내로 해주세요:
+
+${conversationText}
+
+제목만 반환해주세요.`;
+      
+      const title = await this.geminiService.generateWithPrompt(prompt);
+      
+      // 제목이 너무 길면 자르기
+      return title.length > 15 ? title.substring(0, 15) + '...' : title;
+    } catch (error) {
+      this.logger.error('Failed to generate conversation title:', error);
+      // 실패 시 기본 제목 반환
+      return `대화 ${new Date().toLocaleDateString()}`;
+    }
+  }
+
+  // 저장된 대화록 목록 조회 (제목 + ID만)
+  async getConversationSummaries(): Promise<ConversationSummary[]> {
+    try {
+      const firestore = this.firebaseService.getFirestore();
+      
+      const snapshot = await firestore
+        .collection('conversationSessions')
+        .where('isTemporary', '==', false)
+        .orderBy('savedAt', 'desc')
+        .get();
+      
+      return snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          title: data.title,
+          createdAt: data.createdAt.toDate(),
+          savedAt: data.savedAt.toDate(),
+          pairCount: data.pairs?.length || 0,
+        };
+      });
+    } catch (error) {
+      this.logger.error('Failed to get conversation summaries:', error);
+      throw error;
+    }
+  }
+
+  // 특정 대화록 상세 조회 (STT-번역 쌍 배열)
+  async getConversationDetail(sessionId: string): Promise<ConversationDetail> {
+    try {
+      const firestore = this.firebaseService.getFirestore();
+      const sessionDoc = await firestore.collection('conversationSessions').doc(sessionId).get();
+      
+      if (!sessionDoc.exists) {
+        throw new Error('대화록을 찾을 수 없습니다.');
+      }
+      
+      const data = sessionDoc.data();
+      
+      if (data?.isTemporary !== false) {
+        throw new Error('저장되지 않은 임시 대화록입니다.');
+      }
+      
+      return {
+        id: sessionDoc.id,
+        title: data.title,
+        pairs: data.pairs || [],
+        createdAt: data.createdAt.toDate(),
+        savedAt: data.savedAt.toDate(),
+      };
+    } catch (error) {
+      this.logger.error('Failed to get conversation detail:', error);
+      throw error;
+    }
+  }
 }

@@ -1,91 +1,66 @@
-import { ApiProperty } from '@nestjs/swagger';
 import { Language } from '../../shared/constants/language.constants';
 
-export class DetectedLanguageResult {
-  @ApiProperty({
-    description: '감지된 언어 코드',
-    example: 'ko-KR',
-  })
-  detectedLanguage: string;
-
-  @ApiProperty({
-    description: '감지 신뢰도',
-    example: 0.95,
-  })
-  confidence: number;
-
-  @ApiProperty({
-    description: '인식된 텍스트',
-    example: '안녕하세요',
-  })
+export interface SpeechResult {
   transcript: string;
+  confidence: number;
+  languageCode: string;
 }
 
-export class ConversationMessage {
-  @ApiProperty({
-    description: '메시지 ID',
-    example: 'msg123',
-  })
+export interface DetectedLanguageResult {
+  transcript: string;
+  detectedLanguage: Language;
+  confidence: number;
+}
+
+export interface ConversationMessage {
   id: string;
-
-  @ApiProperty({
-    description: '메시지 생성 시간',
-    example: '2025-06-28T10:30:00Z',
-  })
   timestamp: Date;
-
-  @ApiProperty({
-    description: '원본 텍스트',
-    example: '안녕하세요',
-  })
   originalText: string;
-
-  @ApiProperty({
-    description: '원본 언어',
-    enum: Language,
-    example: '한국어',
-  })
-  originalLanguage: Language;
-
-  @ApiProperty({
-    description: '번역된 텍스트',
-    example: 'Hello',
-    required: false,
-  })
-  translatedText?: string;
-
-  @ApiProperty({
-    description: '번역 대상 언어',
-    enum: Language,
-    example: 'English',
-    required: false,
-  })
-  translatedLanguage?: Language;
-
-  @ApiProperty({
-    description: 'Base64로 인코딩된 오디오 데이터',
-    example: 'data:audio/mp3;base64,UklGRn...',
-    required: false,
-  })
-  audioData?: string;
+  originalLanguage: string;
+  translatedText: string;
+  translatedLanguage: string;
+  confidence: number;
+  audioUrl?: string;
 }
 
-export class ConversationResult {
-  @ApiProperty({
-    description: '성공 여부',
-    example: true,
-  })
+export interface ConversationResult {
   success: boolean;
-
-  @ApiProperty({
-    description: '대화 메시지',
-    type: ConversationMessage,
-  })
   message: ConversationMessage;
-
-  @ApiProperty({
-    description: '대화 세션 ID',
-    example: 'conv123',
-  })
   conversationId: string;
+}
+
+// 새로운 대화록 시스템 인터페이스
+export interface ConversationPair {
+  originalText: string;
+  originalLanguage: string;
+  translatedText: string;
+  translatedLanguage: string;
+  timestamp: Date;
+  confidence: number;
+}
+
+export interface ConversationSession {
+  id: string;
+  title?: string; // 요약 제목 (저장된 경우에만)
+  isTemporary: boolean; // true: 임시, false: 저장됨
+  pairs: ConversationPair[];
+  createdAt: Date;
+  updatedAt: Date;
+  savedAt?: Date; // 저장된 시간
+}
+
+export interface ConversationSummary {
+  id: string;
+  title: string;
+  createdAt: Date;
+  savedAt: Date;
+  pairCount: number;
+}
+
+export interface ConversationDetail {
+  id: string;
+  title: string;
+  pairs: ConversationPair[];
+  createdAt: Date;
+  savedAt: Date;
 }
