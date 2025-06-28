@@ -18,7 +18,7 @@ interface RequestWithUser extends Request {
 
 @ApiTags('워크스페이스')
 @ApiBearerAuth()
-@Controller('workspaces')
+@Controller('api/workspaces')
 @UseGuards(JwtAuthGuard)
 export class WorkspaceController {
   constructor(private readonly workspaceService: WorkspaceService) {}

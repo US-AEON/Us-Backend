@@ -12,7 +12,7 @@ interface RequestWithUser extends Request {
 
 @ApiTags('댓글')
 @ApiBearerAuth()
-@Controller()
+@Controller('api')
 @UseGuards(JwtAuthGuard)
 export class CommentController {
   constructor(private readonly commentService: CommentService) {}

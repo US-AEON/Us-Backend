@@ -14,7 +14,7 @@ interface RequestWithUser extends Request {
 }
 
 @ApiTags('사용자')
-@Controller('users')
+@Controller('api/users')
 export class UserController {
   constructor(private readonly userService: UserService) {}
 

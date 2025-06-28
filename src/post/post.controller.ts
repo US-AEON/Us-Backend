@@ -12,7 +12,7 @@ interface RequestWithUser extends Request {
 
 @ApiTags('게시물')
 @ApiBearerAuth()
-@Controller()
+@Controller('api')
 @UseGuards(JwtAuthGuard)
 export class PostController {
   constructor(private readonly postService: PostService) {}
