@@ -6,11 +6,15 @@ import {
   DetectedLanguageResult,
   ConversationMessage,
   ConversationResult,
+  ConversationPair,
+  ConversationSummary,
+  ConversationDetail,
 } from '../interfaces/conversation-result.interface';
 import {
   Language,
   DEFAULT_LANGUAGE_CODE,
   LANGUAGE_NAMES,
+  getLanguageCode,
 } from '../../shared/constants/language.constants';
 import { v4 as uuidv4 } from 'uuid';
 import { FirebaseService } from '../../firebase/firebase.service';
@@ -217,12 +221,12 @@ export class ConversationService {
 
     return isKoreanBetter
       ? {
-          detectedLanguage: DEFAULT_LANGUAGE_CODE,
+          detectedLanguage: Language.KOREAN,
           confidence: sttResults.korean.confidence,
           transcript: sttResults.korean.transcript,
         }
       : {
-          detectedLanguage: foreignLanguageCode,
+          detectedLanguage: this.getLanguageEnumFromCode(foreignLanguageCode),
           confidence: sttResults.foreign.confidence,
           transcript: sttResults.foreign.transcript,
         };
@@ -233,15 +237,15 @@ export class ConversationService {
     targetForeignLanguageCode: string,
   ): TranslationTask {
     const isSourceKorean =
-      detectedResult.detectedLanguage === DEFAULT_LANGUAGE_CODE;
+      detectedResult.detectedLanguage === Language.KOREAN;
 
-    return {
-      sourceText: detectedResult.transcript,
-      sourceLanguage: detectedResult.detectedLanguage,
-      targetLanguage: isSourceKorean
-        ? targetForeignLanguageCode
-        : DEFAULT_LANGUAGE_CODE,
-    };
+          return {
+        sourceText: detectedResult.transcript,
+        sourceLanguage: getLanguageCode(detectedResult.detectedLanguage),
+        targetLanguage: isSourceKorean
+          ? targetForeignLanguageCode
+          : DEFAULT_LANGUAGE_CODE,
+      };
   }
 
   // 문맥을 고려한 번역 수행
@@ -296,28 +300,28 @@ export class ConversationService {
 
   private createConversationMessage(params: {
     originalText: string;
-    originalLanguage: string;
+    originalLanguage: Language;
     translatedText: string;
     translatedLanguage: string;
     confidence: number;
     audioBuffer: Buffer;
   }): ConversationMessage {
-    // 언어 코드를 Language enum으로 변환
-    const originalLanguage = this.getLanguageEnumFromCode(params.originalLanguage);
-    const translatedLanguage = this.getLanguageEnumFromCode(params.translatedLanguage);
+    // 번역 언어 코드를 Language enum으로 변환
+    const translatedLanguageEnum = this.getLanguageEnumFromCode(params.translatedLanguage);
     
     // 원본 언어와 번역 언어가 같으면 번역 정보 생략
-    const isSameLanguage = originalLanguage === translatedLanguage;
+    const isSameLanguage = params.originalLanguage === translatedLanguageEnum;
     
     return {
       id: uuidv4(),
       timestamp: new Date(),
       originalText: params.originalText,
-      originalLanguage: originalLanguage,
+      originalLanguage: params.originalLanguage,
       audioData: params.audioBuffer.toString('base64'),
+      confidence: params.confidence,
       ...(isSameLanguage ? {} : {
         translatedText: params.translatedText,
-        translatedLanguage: translatedLanguage,
+        translatedLanguage: translatedLanguageEnum,
       }),
     };
   }
@@ -390,7 +394,7 @@ export class ConversationService {
         originalText: detectedLanguageResult.transcript,
         originalLanguage: detectedLanguageResult.detectedLanguage,
         translatedText,
-        translatedLanguage: translationTask.targetLanguage,
+        translatedLanguage: this.getLanguageEnumFromCode(translationTask.targetLanguage),
         timestamp: new Date(),
         confidence: detectedLanguageResult.confidence,
       };

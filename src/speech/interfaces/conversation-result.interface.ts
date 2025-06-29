@@ -16,11 +16,12 @@ export interface ConversationMessage {
   id: string;
   timestamp: Date;
   originalText: string;
-  originalLanguage: string;
-  translatedText: string;
-  translatedLanguage: string;
-  confidence: number;
+  originalLanguage: Language;
+  translatedText?: string;
+  translatedLanguage?: Language;
+  confidence?: number;
   audioUrl?: string;
+  audioData?: string;
 }
 
 export interface ConversationResult {
@@ -32,9 +33,9 @@ export interface ConversationResult {
 // 새로운 대화록 시스템 인터페이스
 export interface ConversationPair {
   originalText: string;
-  originalLanguage: string;
+  originalLanguage: Language;
   translatedText: string;
-  translatedLanguage: string;
+  translatedLanguage: Language;
   timestamp: Date;
   confidence: number;
 }
